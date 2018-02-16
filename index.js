@@ -12,6 +12,7 @@ const conn = new sf.Connection({
 
 const bucket_name = 'adcvd-endpointme';
 const freshen_url = 'https://api.trade.gov/v1/adcvd_orders/freshen.json?api_key=';
+const url_template = 'https://beta.trade.gov/adcvd/adcvdcase?=';
 const api_key = process.env.API_KEY;
 
 getObjects = function() {
@@ -24,6 +25,9 @@ getObjects = function() {
 
 processEntries = function(res) {
 	const entries = res.adcvdOrders;
+	for(let i in entries){
+		entries[i].url = url_template + entries[i].caseNumber;
+	}
 	writeToBucket(entries);
 }
 
