@@ -2,6 +2,7 @@ const sf = require('jsforce');
 const AWS = require('aws-sdk');
 const request = require('request');
 const s3 = new AWS.S3();
+const _ = require('lodash');
 
 const sf_username = process.env.SF_USERNAME;
 const sf_password = process.env.SF_PASSWORD;
@@ -12,7 +13,7 @@ const conn = new sf.Connection({
 
 const bucket_name = 'adcvd-endpointme';
 const freshen_url = 'https://api.trade.gov/v1/adcvd_orders/freshen.json?api_key=';
-const url_template = 'https://beta.trade.gov/adcvd/adcvdcase?=';
+const url_template = process.env.URL_TEMPLATE;
 const api_key = process.env.API_KEY;
 
 getObjects = function() {
@@ -24,10 +25,16 @@ getObjects = function() {
 }
 
 processEntries = function(res) {
-	const entries = res.adcvdOrders;
-	for(let i in entries){
-		entries[i].url = url_template + entries[i].caseNumber;
+	const entries = [];
+	const fields_to_copy = ['productShortName', 'country', 'caseNumber', 'segments'];
+
+	for(let i in res.adcvdOrders){
+		let new_entry = Object.assign({}, _.pick(res.adcvdOrders[i], fields_to_copy));
+		new_entry.url = url_template + res.adcvdOrders[i].caseNumber;
+		new_entry.htsNums = _.map(res.adcvdOrders[i].htsNums, function(num_entry) { return num_entry.htsNumberFormatted });
+		entries.push(new_entry);
 	}
+
 	writeToBucket(entries);
 }
 
