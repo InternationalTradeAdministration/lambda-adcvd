@@ -19,7 +19,6 @@ const api_key = process.env.API_KEY;
 getObjects = function() {
 	conn.apex.post('/ADCVD_OrderSearch/', '', function(err, res){
 		if (err) { return console.error(err); }
-
 		processEntries(res);
 	});
 }
@@ -32,6 +31,7 @@ processEntries = function(res) {
 		let new_entry = Object.assign({}, _.pick(res.adcvdOrders[i], fields_to_copy));
 		new_entry.url = url_template + res.adcvdOrders[i].caseNumber;
 		new_entry.htsNums = _.map(res.adcvdOrders[i].htsNums, function(num_entry) { return num_entry.htsNumberFormatted });
+		new_entry.htsNumsRaw = _.map(res.adcvdOrders[i].htsNums, function(num_entry) { return num_entry.htsNumber } );
 		entries.push(new_entry);
 	}
 
