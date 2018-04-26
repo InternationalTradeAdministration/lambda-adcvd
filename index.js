@@ -6,7 +6,6 @@ const _ = require('lodash');
 
 const sf_username = process.env.SF_USERNAME;
 const sf_password = process.env.SF_PASSWORD;
-const sf_security_token = process.env.SF_SECURITY_TOKEN;
 const conn = new sf.Connection({
 	loginUrl: 'https://trade.my.salesforce.com'
 });
@@ -25,7 +24,7 @@ getObjects = function() {
 
 processEntries = function(res) {
 	const entries = [];
-	const fields_to_copy = ['productShortName', 'country', 'caseNumber', 'segments'];
+	const fields_to_copy = ['productShortName', 'country', 'caseNumber', 'segments', 'productName', 'commodity'];
 
 	for(let i in res.adcvdOrders){
 		let new_entry = Object.assign({}, _.pick(res.adcvdOrders[i], fields_to_copy));
@@ -34,13 +33,12 @@ processEntries = function(res) {
 		new_entry.htsNumsRaw = _.map(res.adcvdOrders[i].htsNums, function(num_entry) { return num_entry.htsNumber } );
 		entries.push(new_entry);
 	}
-
 	writeToBucket(entries);
 }
 
 writeToBucket = function(entries) {
 	const params = {
-		Body: JSON.stringify(entries),
+		Body: JSON.stringify(entries, null, 2),
 		Bucket: bucket_name,
 		Key: 'orders.json',
 		ACL: 'public-read',
@@ -63,7 +61,7 @@ freshenEndpoint = function() {
 
 // For development/testing purposes
 exports.handler = function(event, context) {
-	conn.login(sf_username, sf_password+sf_security_token, function(err, res){
+	conn.login(sf_username, sf_password, function(err, res){
 		if (err) { return console.error(err); }
 
 		getObjects();
