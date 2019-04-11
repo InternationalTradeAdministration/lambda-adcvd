@@ -1,0 +1,12 @@
+language: node_js
+node_js:
+    - "8.1"
+before_script:
+    - "npm test"
+deploy:
+  provider: lambda
+  function_name: "ita-adcvd-endpointme-production"
+  region: "us-east-1"
+  role: "arn:aws:iam::397492300137:role/lambda_api"
+  runtime: "nodejs8.10"
+  handler_name: "index.handler"
