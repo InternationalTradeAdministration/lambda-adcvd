@@ -9,4 +9,14 @@ deploy:
   region: "us-east-1"
   role: "arn:aws:iam::397492300137:role/lambda_api"
   runtime: "nodejs8.10"
-  handler_name: "index.handler"
+  handler_name: "handler"
+  memory_size: 256
+  timeout: 120
+  environment_variables:
+    - "SF_LOGIN_URL=$SF_LOGIN_URL"
+    - "SF_USERNAME=$SF_USERNAME"
+    - "SF_PASSWORD=$SF_PASSWORD"
+    - "URL_TEMPLATE=$URL_TEMPLATE"
+    - "S3_BUCKET=$S3_BUCKET"
+    - "FRESHEN_URL=$FRESHEN_URL"
+    - "API_KEY=$API_KEY"
