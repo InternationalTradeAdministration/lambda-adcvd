@@ -24,8 +24,6 @@ coverage
 build/Release
 
 # Dependency directory
-# Commenting this out is preferred by some people, see
-# https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git-
 node_modules
 
 # Users Environment Variables
@@ -38,3 +36,6 @@ deploy.env
 event.json
 event_sources.json
 .DS_Store
+
+# Env files
+.env*
