@@ -9,7 +9,7 @@ beforeEach(() => {
     Product_Short_Name__c: 'bike',
     Country__c: 'greece',
     ADCVD_Case_Number__c: 'bk_gr_001',
-    Product__c: 'bicycle',
+    Product__c: 'bicycle, motorcycle',
     Commodity__c: 'nope',
     Segments__r: {
       records: [
@@ -64,11 +64,6 @@ beforeEach(() => {
 })
 
 describe('adcvd data translation', () => {
-  it('translates Product_Short_Name__c to productShortName', () => {
-    const result = index.translate(mockAdcvdRecords, urlTemplate)
-    chai.expect(result.productShortName).to.eq('bike')
-  })
-
   it('translates Country__c to country', () => {
     const result = index.translate(mockAdcvdRecords, urlTemplate)
     chai.expect(result.country).to.eq('greece')
@@ -81,7 +76,12 @@ describe('adcvd data translation', () => {
 
   it('translates Product__c to productName', () => {
     const result = index.translate(mockAdcvdRecords, urlTemplate)
-    chai.expect(result.productName).to.eq('bicycle')
+    chai.expect(result.productName).to.eq('bicycle, motorcycle')
+  })
+
+  it('translates Product__c to productNameSanitized', () => {
+    const result = index.translate(mockAdcvdRecords, urlTemplate)
+    chai.expect(result.productNameSanitized).to.eq('bicycle motorcycle')
   })
 
   it('translates Commodity__c to commodity', () => {
@@ -147,6 +147,25 @@ describe('adcvd data translation', () => {
     const result = index.translate(mockAdcvdRecords, urlTemplate)
     chai.expect(result.htsNums).to.deep.eq(null)
     chai.expect(result.htsNumsRaw).to.deep.eq(null)
+  })
+})
+
+describe('adcvd data transformation', () => {
+  it('generates hts number prefixes', () => {
+    const translatedResults = index.translate(mockAdcvdRecords, urlTemplate)
+    const result = index.transform(translatedResults)
+    chai.expect(result.htsNumberPrefixes).to.eql(
+      ['72',
+        '722',
+        '7229',
+        '72299',
+        '722990',
+        '7229901',
+        '72299010',
+        '722990100',
+        '7229901000',
+        '722990101',
+        '7229901011'])
   })
 })
 

@@ -3,6 +3,7 @@ const AWS = require('aws-sdk')
 const request = require('request')
 const s3 = new AWS.S3()
 const moment = require('moment')
+const _ = require('lodash')
 require('dotenv').config()
 
 const sfLoginUrl = process.env.SF_LOGIN_URL
@@ -41,7 +42,8 @@ const adcvdQuery =
 '       HTS_Number_Formatted__c ' +
 'FROM   Harmonized_Tariff_Schedules__r  ' +
 'ORDER  BY HTS_Number_Formatted__c ASC) ' +
-'FROM   ADCVD_Order__c '
+'FROM   ADCVD_Order__c ' +
+"WHERE  Status__c != 'Revoked-Complete'"
 
 // For development/testing purposes
 exports.handler = function (event, context) {
@@ -57,6 +59,7 @@ const getAdcvdObjects = (writeToS3BucketFn) => {
   var query = conn.query(adcvdQuery)
     .on('record', function (record) {
       translatedRecords.push(translate(record, urlTemplate))
+      _.map(translatedRecords, transform)
     })
     .on('end', async function () {
       console.log('total in database : ' + query.totalSize)
@@ -71,8 +74,8 @@ const getAdcvdObjects = (writeToS3BucketFn) => {
 
 const translate = (r, urlTemplate) => {
   let newSegments = []
-  if (r['Segments__r']) {
-    newSegments = r['Segments__r'].records.map((seg) => {
+  if (r.Segments__r) {
+    newSegments = r.Segments__r.records.map((seg) => {
       const announcementInfo = getAnnouncementTypeInfo(seg)
       const recordType = seg.RecordType.Name
       return {
@@ -87,23 +90,34 @@ const translate = (r, urlTemplate) => {
   }
 
   let htsNums = null; let htsNumsRaw = null
-  if (r['Harmonized_Tariff_Schedules__r']) {
-    htsNums = r['Harmonized_Tariff_Schedules__r'].records.map(hts => hts.HTS_Number_Formatted__c)
-    htsNumsRaw = r['Harmonized_Tariff_Schedules__r'].records.map(hts => hts.HTS_Number__c)
+  if (r.Harmonized_Tariff_Schedules__r) {
+    htsNums = r.Harmonized_Tariff_Schedules__r.records.map(hts => hts.HTS_Number_Formatted__c)
+    htsNumsRaw = r.Harmonized_Tariff_Schedules__r.records.map(hts => hts.HTS_Number__c)
   }
 
-  let newEntry = {}
-  newEntry['productShortName'] = r['Product_Short_Name__c']
-  newEntry['country'] = r['Country__c']
-  newEntry['caseNumber'] = r['ADCVD_Case_Number__c']
-  newEntry['segments'] = newSegments
-  newEntry['productName'] = r['Product__c']
-  newEntry['commodity'] = r['Commodity__c']
-  newEntry['url'] = urlTemplate + r['ADCVD_Case_Number__c']
-  newEntry['htsNums'] = htsNums
-  newEntry['htsNumsRaw'] = htsNumsRaw
+  const newEntry = {}
+  newEntry.country = r.Country__c
+  newEntry.caseNumber = r.ADCVD_Case_Number__c
+  newEntry.segments = newSegments
+  newEntry.productName = r.Product__c
+  newEntry.productNameSanitized = r.Product__c.replace(/,/g, ' ').replace(/\s+/g, ' ')
+  newEntry.commodity = r.Commodity__c
+  newEntry.url = urlTemplate + r.ADCVD_Case_Number__c
+  newEntry.htsNums = htsNums
+  newEntry.htsNumsRaw = htsNumsRaw
 
   return newEntry
+}
+
+const transform = (entry) => {
+  var htsNumberPrefixes = []
+  _.forEach(entry.htsNumsRaw, function (htsNum) {
+    for (var i = 2; i <= htsNum.length; i++) {
+      htsNumberPrefixes.push(htsNum.substr(0, i))
+    }
+  })
+  entry.htsNumberPrefixes = _.uniq(htsNumberPrefixes)
+  return entry
 }
 
 const writeToBucket = (entries) => {
@@ -149,4 +163,5 @@ const getAnnouncementTypeInfo = (seg) => {
 }
 
 exports.translate = translate
+exports.transform = transform
 exports.getAnnouncementTypeInfo = getAnnouncementTypeInfo
