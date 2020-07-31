@@ -18,11 +18,11 @@ const conn = new sf.Connection({ loginUrl: sfLoginUrl })
 
 const adcvdQuery =
 'SELECT Id, ' +
-'ADCVD_Case_Number__c, ' +
-'Product__c, ' +
-'Product_Short_Name__c, ' +
-'Country__c, ' +
-'Commodity__c, ' +
+'ADCVD_Case_Number_Text__c, ' +
+'Product_Text__c, ' +
+'Product_Short_Name_Text__c, ' +
+'Country_Text__c, ' +
+'Commodity_Text__c, ' +
 '(SELECT id, ' +
 '       RecordTypeId, ' +
 '       Actual_Final_Signature__c, ' +
@@ -96,13 +96,14 @@ const translate = (r, urlTemplate) => {
   }
 
   const newEntry = {}
-  newEntry.country = r.Country__c
-  newEntry.caseNumber = r.ADCVD_Case_Number__c
+  newEntry.country = r.Country_Text__c
+  newEntry.caseNumber = r.ADCVD_Case_Number_Text__c
   newEntry.segments = newSegments
-  newEntry.productName = r.Product__c
-  newEntry.productNameSanitized = r.Product__c.replace(/,/g, ' ').replace(/\s+/g, ' ')
-  newEntry.commodity = r.Commodity__c
-  newEntry.url = urlTemplate + r.ADCVD_Case_Number__c
+  newEntry.productName = r.Product_Text__c
+  newEntry.productNameSanitized = r.Product_Text__c.replace(/,/g, ' ').replace(/\s+/g, ' ')
+  newEntry.productShortName = r.Product_Short_Name_Text__c
+  newEntry.commodity = r.Commodity_Text__c
+  newEntry.url = urlTemplate + r.ADCVD_Case_Number_Text__c
   newEntry.htsNums = htsNums
   newEntry.htsNumsRaw = htsNumsRaw
 
