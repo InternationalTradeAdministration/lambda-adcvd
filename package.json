@@ -32,8 +32,8 @@
   "dependencies": {
     "aws-sdk": "^2.553.0",
     "dotenv": "^7.0.0",
-    "jsforce": "^1.9.2",
-    "lodash": "^4.17.15",
+    "jsforce": "^1.10.0",
+    "lodash": "^4.17.20",
     "moment": "^2.24.0",
     "request": "^2.88.0"
   },

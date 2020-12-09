@@ -1,168 +1,23 @@
-const sf = require('jsforce')
-const AWS = require('aws-sdk')
-const request = require('request')
-const s3 = new AWS.S3()
-const moment = require('moment')
-const _ = require('lodash')
-require('dotenv').config()
+const JsforceUtil = require('./jsforce_util')
+const Extractor = require('./extractor')
+const Loader = require('./loader')
 
-const sfLoginUrl = process.env.SF_LOGIN_URL
-const sfUsername = process.env.SF_USERNAME
-const sfPassword = process.env.SF_PASSWORD
-const urlTemplate = process.env.URL_TEMPLATE
-const apiKey = process.env.API_KEY
-const s3Bucket = process.env.S3_BUCKET
-const freshenUrl = process.env.FRESHEN_URL
-
-const conn = new sf.Connection({ loginUrl: sfLoginUrl })
-
-const adcvdQuery =
-'SELECT Id, ' +
-'ADCVD_Case_Number_Text__c, ' +
-'Product_Text__c, ' +
-'Product_Short_Name_Text__c, ' +
-'Country_Text__c, ' +
-'Commodity_Text__c, ' +
-'(SELECT id, ' +
-'       RecordTypeId, ' +
-'       Actual_Final_Signature__c, ' +
-'       Initiation_Extension_Remaining__c, ' +
-'       Preliminary_Extension_Remaining__c, ' +
-'       Final_Extension_Remaining__c, ' +
-'       Initiation_Announcement_Date__c, ' +
-'       Preliminary_Announcement_Date__c, ' +
-'       Final_Announcement_Date__c, ' +
-'       Next_Announcement_Date__c, ' +
-'       RecordType.Name ' +
-'FROM   Segments__r ' +
-'WHERE  Next_Announcement_Date__c != NULL ' +
-'ORDER  BY Next_Announcement_Date__c ASC), ' +
-'(SELECT Id, ' +
-'       HTS_Number__c, ' +
-'       HTS_Number_Formatted__c ' +
-'FROM   Harmonized_Tariff_Schedules__r  ' +
-'ORDER  BY HTS_Number_Formatted__c ASC) ' +
-'FROM   ADCVD_Order__c ' +
-"WHERE  Status__c != 'Revoked-Complete'"
-
-// For development/testing purposes
-exports.handler = function (event, context) {
-  conn.login(sfUsername, sfPassword, function (err, res) {
-    if (err) { return console.error(err) }
-    console.log('Logged into Salesforce successfully!')
-    getAdcvdObjects(writeToBucket)
-  })
-}
-
-const getAdcvdObjects = (writeToS3BucketFn) => {
-  var translatedRecords = []
-  var query = conn.query(adcvdQuery)
-    .on('record', function (record) {
-      translatedRecords.push(translate(record, urlTemplate))
-      _.map(translatedRecords, transform)
-    })
-    .on('end', async function () {
-      console.log('total in database : ' + query.totalSize)
-      console.log('total fetched : ' + query.totalFetched)
-      writeToS3BucketFn(await Promise.all(translatedRecords))
-    })
-    .on('error', function (err) {
-      console.error(err)
-    })
-    .run({ autoFetch: true })
-}
-
-const translate = (r, urlTemplate) => {
-  let newSegments = []
-  if (r.Segments__r) {
-    newSegments = r.Segments__r.records.map((seg) => {
-      const announcementInfo = getAnnouncementTypeInfo(seg)
-      const recordType = seg.RecordType.Name
-      return {
-        id: seg.Id,
-        announcementDate: moment(seg.Next_Announcement_Date__c, 'YYYY-MM-DD').format('MM/DD/YYYY'),
-        announcementType: announcementInfo.type,
-        daysRemaining: announcementInfo.daysRemaining,
-        decisionSigned: announcementInfo.decisionSigned,
-        recordType
-      }
-    })
+module.exports = {
+  handler: (_event, _context, callback) => {
+    var recordMap = {}
+    JsforceUtil.queryAdcvdOrders()
+      .then(results => Extractor.extract(recordMap, results))
+      .then(recordMap => JsforceUtil.queryInvestigations())
+      .then(results => Extractor.extract(recordMap, results))
+      .then(recordMap => JsforceUtil.querySegments())
+      .then(results => Extractor.extract(recordMap, results))
+      .then((recordMap) => Loader.load('adcvd_orders', Object.values(recordMap)))
+      .then(() => {
+        callback(null, 'done')
+      })
+      .catch(err => {
+        console.log(`err: ${err}`)
+        callback(err)
+      })
   }
-
-  let htsNums = null; let htsNumsRaw = null
-  if (r.Harmonized_Tariff_Schedules__r) {
-    htsNums = r.Harmonized_Tariff_Schedules__r.records.map(hts => hts.HTS_Number_Formatted__c)
-    htsNumsRaw = r.Harmonized_Tariff_Schedules__r.records.map(hts => hts.HTS_Number__c)
-  }
-
-  const newEntry = {}
-  newEntry.country = r.Country_Text__c
-  newEntry.caseNumber = r.ADCVD_Case_Number_Text__c
-  newEntry.segments = newSegments
-  newEntry.productName = r.Product_Text__c
-  newEntry.productNameSanitized = r.Product_Text__c.replace(/,/g, ' ').replace(/\s+/g, ' ')
-  newEntry.productShortName = r.Product_Short_Name_Text__c
-  newEntry.commodity = r.Commodity_Text__c
-  newEntry.url = urlTemplate + r.ADCVD_Case_Number_Text__c
-  newEntry.htsNums = htsNums
-  newEntry.htsNumsRaw = htsNumsRaw
-
-  return newEntry
 }
-
-const transform = (entry) => {
-  var htsNumberPrefixes = []
-  _.forEach(entry.htsNumsRaw, function (htsNum) {
-    for (var i = 2; i <= htsNum.length; i++) {
-      htsNumberPrefixes.push(htsNum.substr(0, i))
-    }
-  })
-  entry.htsNumberPrefixes = _.uniq(htsNumberPrefixes)
-  return entry
-}
-
-const writeToBucket = (entries) => {
-  const params = {
-    Body: JSON.stringify(entries, null, 2),
-    Bucket: s3Bucket,
-    Key: 'orders.json',
-    ACL: 'public-read',
-    ContentType: 'application/json'
-  }
-  s3.putObject(params, function (err, data) {
-    if (err) { return console.error(err) }
-    console.log('File uploaded successfully!')
-    freshenEndpoint()
-  })
-}
-
-const freshenEndpoint = () => {
-  request(freshenUrl + apiKey, function (err, res, body) {
-    if (err || (res && res.statusCode !== 200)) return console.error(`An error occurred while freshening the endpoint. ${body}`)
-    console.log('Endpoint updated successfully!')
-  })
-}
-
-const getAnnouncementTypeInfo = (seg) => {
-  let announcementTypeInfo = {}
-
-  if (seg.Next_Announcement_Date__c === seg.Initiation_Announcement_Date__c) {
-    announcementTypeInfo = { type: 'Initiation', daysRemaining: seg.Initiation_Extension_Remaining__c }
-  } else if (seg.Next_Announcement_Date__c === seg.Preliminary_Announcement_Date__c) {
-    announcementTypeInfo = { type: 'Preliminary', daysRemaining: seg.Preliminary_Extension_Remaining__c }
-  } else if (seg.Next_Announcement_Date__c === seg.Final_Announcement_Date__c) {
-    announcementTypeInfo = { type: 'Final', daysRemaining: seg.Final_Extension_Remaining__c }
-  }
-  if (seg.Actual_Final_Signature__c) {
-    announcementTypeInfo.daysRemaining = 'Decision Signed'
-    announcementTypeInfo.decisionSigned = true
-  } else {
-    announcementTypeInfo.decisionSigned = false
-  }
-
-  return announcementTypeInfo
-}
-
-exports.translate = translate
-exports.transform = transform
-exports.getAnnouncementTypeInfo = getAnnouncementTypeInfo

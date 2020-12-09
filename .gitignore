@@ -29,13 +29,14 @@ node_modules
 # Users Environment Variables
 .lock-wscript
 
-build
+/build
 
-.env
 deploy.env
 event.json
 event_sources.json
 .DS_Store
 
 # Env files
-.env*
+/.env*
+
+/output
