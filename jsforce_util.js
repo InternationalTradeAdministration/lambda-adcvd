@@ -55,6 +55,29 @@ var JsforceUtil = {
       })
   },
 
+  querySuspensionAgreements: () => {
+    return JsforceUtil.login()
+      .then((conn) => {
+        console.log('executing query on Suspension Agreements')
+        return new Promise((resolve) => {
+          var records = []
+          var query = conn.query(`SELECT Id, ${ADCVD_CASE_FIELDS}, (SELECT ${HTS_FIELDS} FROM Harmonized_Tariff_Schedules__r) FROM Suspension_Agreement__c WHERE Status__c = 'Current - Active' ORDER BY Id ASC`)
+            .on('record', function (record) {
+              records.push(record)
+            })
+            .on('end', async function () {
+              console.log('total in database : ' + query.totalSize)
+              console.log('total fetched : ' + query.totalFetched)
+              resolve(records)
+            })
+            .on('error', function (err) {
+              console.error(err)
+            })
+            .run({ autoFetch: true })
+        })
+      })
+  },
+
   queryInvestigations: () => {
     return JsforceUtil.login()
       .then((conn) => {
@@ -62,7 +85,12 @@ var JsforceUtil = {
         return new Promise((resolve) => {
           conn.sobject('Investigation__c')
             .select('ADCVD_Case__r.*')
-            .where({ Next_Announcement_Date__c: { $ne: null } })
+            .where({
+              $or: [
+                { Next_Announcement_Date__c: { $ne: null } },
+                { Status__c: 'Pending Order' }
+              ]
+            })
             .sort({ Id: 1 })
             .execute((err, records) => {
               console.log(`fetched Investigations: ${records.length}`)

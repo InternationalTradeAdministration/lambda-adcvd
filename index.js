@@ -7,6 +7,8 @@ module.exports = {
     var recordMap = {}
     JsforceUtil.queryAdcvdOrders()
       .then(results => Extractor.extract(recordMap, results))
+      .then(recordMap => JsforceUtil.querySuspensionAgreements())
+      .then(results => Extractor.extract(recordMap, results))
       .then(recordMap => JsforceUtil.queryInvestigations())
       .then(results => Extractor.extract(recordMap, results))
       .then(recordMap => JsforceUtil.querySegments())
