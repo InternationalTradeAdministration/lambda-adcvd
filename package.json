@@ -30,7 +30,7 @@
     "standard": "^14.3.1"
   },
   "dependencies": {
-    "aws-sdk": "^2.553.0",
+    "aws-sdk": "^2.814.0",
     "dotenv": "^7.0.0",
     "jsforce": "^1.10.0",
     "lodash": "^4.17.20",
