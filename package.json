@@ -34,7 +34,7 @@
     "dotenv": "^7.0.0",
     "jsforce": "^1.10.0",
     "lodash": "^4.17.20",
-    "moment": "^2.24.0",
+    "moment": "^2.29.2",
     "request": "^2.88.0"
   },
   "standard": {
